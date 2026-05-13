@@ -26,6 +26,12 @@
 
 資料會保存在目前瀏覽器的本機儲存空間；若換電腦或換瀏覽器，請先匯出 CSV 備份。
 
+## 公開網站
+
+GitHub Pages：
+
+`https://stteach01-jpg.github.io/lunch-fee/`
+
 ## 工作方式
 
 - 開工：讀取 `AGENTS.md`、本檔與第二大腦專案儀表板後再開始修改。
