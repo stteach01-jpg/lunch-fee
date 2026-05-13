@@ -730,7 +730,8 @@ async function loginAdmin() {
     renderAdminState();
     elements.excludedDates.focus();
   } catch (error) {
-    alert("Google 管理者登入失敗，請確認 Firebase 已啟用 Google 登入。");
+    const code = error?.code ? `（${error.code}）` : "";
+    alert(`Google 管理者登入失敗${code}。請確認 Firebase 已啟用 Google 登入，且已授權 stteach01-jpg.github.io 網域。`);
   }
 }
 

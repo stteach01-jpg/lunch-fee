@@ -49,6 +49,7 @@ GitHub Pages：
 - Project：`teacherstudy-259b4`
 - Collection：`lunch_fee_months/{monthId}/registrations/{registrationId}`
 - Firestore rules：一般登入者可讀取總表並新增/更新教師登記；管理者才可修改月份設定與刪除資料。
+- 管理者登入需要在 Firebase Console 啟用 Authentication 的 Google provider，並將 `stteach01-jpg.github.io` 加入 Authorized domains。
 
 ## 工作方式
 
