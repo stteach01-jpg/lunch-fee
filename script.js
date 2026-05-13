@@ -1,18 +1,30 @@
 const LUNCH_PRICE = 55;
 const STORAGE_KEY = "shetouTeacherLunchRegistrations";
+const ADMIN_EMAIL = "shuju.chiang@gmail.com";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDm-0Hv7ED62tcomdfM_a48nSXpS9h9KI0",
+  authDomain: "teacherstudy-259b4.firebaseapp.com",
+  projectId: "teacherstudy-259b4",
+  storageBucket: "teacherstudy-259b4.firebasestorage.app",
+  messagingSenderId: "455684006519",
+  appId: "1:455684006519:web:d9857165787900973c9c72",
+};
 
 const weekdays = [
-  { value: 1, label: "星期一", shortLabel: "一" },
-  { value: 2, label: "星期二", shortLabel: "二" },
-  { value: 3, label: "星期三", shortLabel: "三" },
-  { value: 4, label: "星期四", shortLabel: "四" },
-  { value: 5, label: "星期五", shortLabel: "五" },
+  { value: 1, label: "星期一" },
+  { value: 2, label: "星期二" },
+  { value: 3, label: "星期三" },
+  { value: 4, label: "星期四" },
+  { value: 5, label: "星期五" },
 ];
 
 const elements = {
   monthPicker: document.querySelector("#monthPicker"),
   monthLabel: document.querySelector("#monthLabel"),
   excludedDates: document.querySelector("#excludedDates"),
+  excludedDatesField: document.querySelector("#excludedDatesField"),
+  excludedReadonlyNote: document.querySelector("#excludedReadonlyNote"),
   excludedDatesHint: document.querySelector("#excludedDatesHint"),
   weekdaySummary: document.querySelector("#weekdaySummary"),
   weekdayCardTemplate: document.querySelector("#weekdayCardTemplate"),
@@ -29,12 +41,23 @@ const elements = {
   exportButton: document.querySelector("#exportButton"),
   clearMonthButton: document.querySelector("#clearMonthButton"),
   saveButton: document.querySelector("#saveButton"),
+  syncStatus: document.querySelector("#syncStatus"),
+  refreshButton: document.querySelector("#refreshButton"),
+  adminToggleButton: document.querySelector("#adminToggleButton"),
+  adminPanel: document.querySelector("#adminPanel"),
+  adminLoginButton: document.querySelector("#adminLoginButton"),
 };
 
-let state = loadState();
+let state = loadLocalState();
 let editingId = null;
+let db = null;
+let unsubscribeMonth = null;
+let unsubscribeEntries = null;
+let currentMonthKey = "";
+let cloudReady = false;
+let isAdmin = false;
 
-function getCurrentMonthValue() {
+function getDefaultMonthValue() {
   const now = new Date();
   if (now.getDate() > 15) {
     now.setMonth(now.getMonth() + 1);
@@ -42,7 +65,7 @@ function getCurrentMonthValue() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function loadState() {
+function loadLocalState() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     return saved ? JSON.parse(saved) : {};
@@ -51,7 +74,7 @@ function loadState() {
   }
 }
 
-function saveState() {
+function saveLocalState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
@@ -70,11 +93,134 @@ function getMonthData(monthKey) {
     };
   }
 
+  state[monthKey].entries = Array.isArray(state[monthKey].entries) ? state[monthKey].entries : [];
+  state[monthKey].excludedDates = state[monthKey].excludedDates || "";
   return state[monthKey];
 }
 
 function getMonthEntries(monthKey) {
   return getMonthData(monthKey).entries;
+}
+
+function getMonthRef(monthKey) {
+  return db.collection("lunch_fee_months").doc(monthKey);
+}
+
+function getEntriesRef(monthKey) {
+  return getMonthRef(monthKey).collection("registrations");
+}
+
+function setStatus(message) {
+  elements.syncStatus.textContent = message;
+}
+
+async function initCloud() {
+  if (!window.firebase) {
+    setStatus("Firebase 尚未載入，暫用本機資料");
+    return;
+  }
+
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+
+  try {
+    if (!firebase.auth().currentUser) {
+      await firebase.auth().signInAnonymously();
+    }
+    isAdmin = firebase.auth().currentUser?.email === ADMIN_EMAIL;
+    cloudReady = true;
+    subscribeMonth(elements.monthPicker.value);
+  } catch (error) {
+    cloudReady = false;
+    setStatus("雲端登入失敗，暫用本機資料");
+  }
+}
+
+function subscribeMonth(monthKey) {
+  currentMonthKey = monthKey;
+  if (unsubscribeMonth) {
+    unsubscribeMonth();
+  }
+  if (unsubscribeEntries) {
+    unsubscribeEntries();
+  }
+
+  if (!cloudReady) {
+    renderAll();
+    return;
+  }
+
+  setStatus(`正在同步 ${getMonthDisplay(monthKey)} 雲端總表`);
+  unsubscribeMonth = getMonthRef(monthKey).onSnapshot(
+    (snapshot) => {
+      const data = snapshot.exists ? snapshot.data() : {};
+      const monthData = getMonthData(monthKey);
+      monthData.excludedDates = data.excludedDates || "";
+      saveLocalState();
+      elements.excludedDates.value = getMonthData(monthKey).excludedDates;
+      renderAll();
+      setStatus(`已同步 ${getMonthDisplay(monthKey)} 雲端總表`);
+    },
+    () => {
+      setStatus("雲端同步失敗，請重新整理");
+    },
+  );
+  unsubscribeEntries = getEntriesRef(monthKey).onSnapshot(
+    (snapshot) => {
+      const monthData = getMonthData(monthKey);
+      monthData.entries = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      saveLocalState();
+      renderAll();
+      setStatus(`已同步 ${getMonthDisplay(monthKey)} 雲端總表`);
+    },
+    () => {
+      setStatus("教師登記同步失敗，請重新整理");
+    },
+  );
+}
+
+async function saveExcludedDates(monthKey, excludedDates) {
+  getMonthData(monthKey).excludedDates = excludedDates;
+  saveLocalState();
+  renderAll();
+
+  if (!cloudReady) {
+    setStatus("目前使用本機資料，尚未同步雲端");
+    return;
+  }
+
+  setStatus("正在寫入後台設定");
+  await getMonthRef(monthKey).set({
+    excludedDates,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+  setStatus(`已更新 ${getMonthDisplay(monthKey)} 後台設定`);
+}
+
+async function saveRegistration(monthKey, entry) {
+  const monthData = getMonthData(monthKey);
+  const existingIndex = monthData.entries.findIndex((item) => item.id === entry.id);
+  if (existingIndex >= 0) {
+    monthData.entries[existingIndex] = entry;
+  } else {
+    monthData.entries.push(entry);
+  }
+  saveLocalState();
+  renderAll();
+
+  if (!cloudReady) {
+    setStatus("目前使用本機資料，尚未同步雲端");
+    return;
+  }
+
+  setStatus("正在寫入教師登記");
+  await getEntriesRef(monthKey).doc(entry.id).set({
+    name: entry.name,
+    weekdays: entry.weekdays,
+    updatedAtMillis: entry.updatedAtMillis,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+  setStatus(`已寫入 ${getMonthDisplay(monthKey)} 雲端總表`);
 }
 
 function getBaseWeekdayCounts(monthKey) {
@@ -171,15 +317,18 @@ function parseExcludedDay(value, year, month, lastDate) {
 function getWeekdayCounts(monthKey) {
   const baseCounts = getBaseWeekdayCounts(monthKey);
   const excluded = getExcludedDateInfo(monthKey);
-  const counts = { ...baseCounts };
+  const adjustedCounts = { ...baseCounts };
 
   weekdays.forEach((weekday) => {
-    counts[weekday.value] = Math.max(0, baseCounts[weekday.value] - excluded.byWeekday[weekday.value]);
+    adjustedCounts[weekday.value] = Math.max(
+      0,
+      baseCounts[weekday.value] - excluded.byWeekday[weekday.value],
+    );
   });
 
   return {
     baseCounts,
-    adjustedCounts: counts,
+    adjustedCounts,
     excluded,
   };
 }
@@ -201,6 +350,20 @@ function calculateDays(selectedWeekdays, counts) {
 
 function formatMoney(amount) {
   return `${amount.toLocaleString("zh-TW")} 元`;
+}
+
+function renderAll() {
+  renderAdminState();
+  renderWeekdaySummary();
+  renderPreview();
+  renderTable();
+}
+
+function renderAdminState() {
+  elements.excludedDatesField.hidden = !isAdmin;
+  elements.excludedReadonlyNote.hidden = isAdmin;
+  elements.clearMonthButton.hidden = !isAdmin;
+  elements.adminToggleButton.textContent = isAdmin ? "離開管理模式" : "管理者設定";
 }
 
 function renderWeekdaySummary() {
@@ -277,7 +440,7 @@ function renderTable() {
           <td>
             <div class="row-actions">
               <button type="button" class="secondary-button" data-action="edit" data-id="${entry.id}">編輯</button>
-              <button type="button" class="danger-button" data-action="delete" data-id="${entry.id}">刪除</button>
+              ${isAdmin ? `<button type="button" class="danger-button" data-action="delete" data-id="${entry.id}">刪除</button>` : ""}
             </div>
           </td>
         `;
@@ -319,10 +482,11 @@ function resetForm() {
   elements.teacherName.focus();
 }
 
-function handleSubmit(event) {
+async function handleSubmit(event) {
   event.preventDefault();
 
   const monthKey = elements.monthPicker.value;
+  const monthData = getMonthData(monthKey);
   const name = elements.teacherName.value.trim();
   const selectedWeekdays = getSelectedWeekdays();
 
@@ -336,46 +500,56 @@ function handleSubmit(event) {
     return;
   }
 
-  const entries = getMonthEntries(monthKey);
+  const entries = [...monthData.entries];
   const duplicate = entries.find((entry) => entry.name === name && entry.id !== editingId);
 
   if (duplicate && !confirm(`${name} 在本月已有登記，是否覆蓋原本資料？`)) {
     return;
   }
 
+  let entryToSave;
   if (duplicate) {
-    duplicate.weekdays = selectedWeekdays;
-    if (editingId) {
-      getMonthData(monthKey).entries = entries.filter((entry) => entry.id !== editingId);
-    }
+    entryToSave = {
+      ...duplicate,
+      weekdays: selectedWeekdays,
+      updatedAtMillis: Date.now(),
+    };
   } else if (editingId) {
     const current = entries.find((entry) => entry.id === editingId);
     if (current) {
-      current.name = name;
-      current.weekdays = selectedWeekdays;
+      entryToSave = {
+        ...current,
+        name,
+        weekdays: selectedWeekdays,
+        updatedAtMillis: Date.now(),
+      };
     }
   } else {
-    entries.push({
+    entryToSave = {
       id: globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : String(Date.now()),
       name,
       weekdays: selectedWeekdays,
-    });
+      updatedAtMillis: Date.now(),
+    };
   }
 
-  saveState();
+  if (!entryToSave) {
+    return;
+  }
+
+  await saveRegistration(monthKey, entryToSave);
   resetForm();
-  renderTable();
 }
 
-function handleTableClick(event) {
+async function handleTableClick(event) {
   const button = event.target.closest("button[data-action]");
   if (!button) {
     return;
   }
 
   const monthKey = elements.monthPicker.value;
-  const entries = getMonthEntries(monthKey);
-  const entry = entries.find((item) => item.id === button.dataset.id);
+  const monthData = getMonthData(monthKey);
+  const entry = monthData.entries.find((item) => item.id === button.dataset.id);
 
   if (!entry) {
     return;
@@ -392,13 +566,17 @@ function handleTableClick(event) {
     elements.teacherName.focus();
   }
 
-  if (button.dataset.action === "delete" && confirm(`確定刪除 ${entry.name} 的登記資料？`)) {
-    getMonthData(monthKey).entries = entries.filter((item) => item.id !== entry.id);
-    saveState();
+  if (button.dataset.action === "delete" && isAdmin && confirm(`確定刪除 ${entry.name} 的登記資料？`)) {
+    if (!cloudReady) {
+      monthData.entries = monthData.entries.filter((item) => item.id !== entry.id);
+      saveLocalState();
+      renderAll();
+    } else {
+      await getEntriesRef(monthKey).doc(entry.id).delete();
+    }
     if (editingId === entry.id) {
       resetForm();
     }
-    renderTable();
   }
 }
 
@@ -445,49 +623,114 @@ function toCsvCell(value) {
   return `"${text.replaceAll('"', '""')}"`;
 }
 
-function clearMonth() {
+async function clearMonth() {
+  if (!isAdmin) {
+    alert("請先進入管理模式。");
+    return;
+  }
+
   const monthKey = elements.monthPicker.value;
+  const monthData = getMonthData(monthKey);
   if (!confirm(`確定清空 ${getMonthDisplay(monthKey)} 的所有登記資料？`)) {
     return;
   }
 
-  getMonthData(monthKey).entries = [];
-  saveState();
+  if (!cloudReady) {
+    monthData.entries = [];
+    saveLocalState();
+    renderAll();
+  } else {
+    const snapshot = await getEntriesRef(monthKey).get();
+    const batch = db.batch();
+    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+  }
   resetForm();
-  renderTable();
 }
 
 function handleMonthChange() {
   elements.excludedDates.value = getMonthData(elements.monthPicker.value).excludedDates || "";
   resetForm();
-  renderWeekdaySummary();
-  renderTable();
+  subscribeMonth(elements.monthPicker.value);
+  renderAll();
 }
 
-function handleExcludedDatesChange() {
+async function handleExcludedDatesChange() {
+  if (!isAdmin) {
+    elements.excludedDates.value = getMonthData(elements.monthPicker.value).excludedDates || "";
+    return;
+  }
+
   const monthKey = elements.monthPicker.value;
-  getMonthData(monthKey).excludedDates = elements.excludedDates.value.trim();
-  saveState();
-  renderWeekdaySummary();
-  renderPreview();
-  renderTable();
+  const monthData = getMonthData(monthKey);
+  monthData.excludedDates = elements.excludedDates.value.trim();
+  await saveExcludedDates(monthKey, monthData.excludedDates);
+}
+
+async function toggleAdminPanel() {
+  if (isAdmin) {
+    isAdmin = false;
+    elements.adminPanel.hidden = true;
+    renderAdminState();
+    if (window.firebase) {
+      await firebase.auth().signOut();
+      await firebase.auth().signInAnonymously();
+      subscribeMonth(elements.monthPicker.value);
+    }
+    return;
+  }
+
+  elements.adminPanel.hidden = !elements.adminPanel.hidden;
+  if (!elements.adminPanel.hidden) {
+    elements.adminLoginButton.focus();
+  }
+}
+
+async function loginAdmin() {
+  if (!window.firebase) {
+    alert("Firebase 尚未載入，無法登入管理模式。");
+    return;
+  }
+
+  try {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    const result = await firebase.auth().signInWithPopup(provider);
+    const email = result.user?.email || "";
+    if (email !== ADMIN_EMAIL) {
+      alert(`此帳號不是管理者：${email}`);
+      await firebase.auth().signOut();
+      await firebase.auth().signInAnonymously();
+      return;
+    }
+
+    isAdmin = true;
+    elements.adminPanel.hidden = true;
+    cloudReady = true;
+    subscribeMonth(elements.monthPicker.value);
+    renderAdminState();
+    elements.excludedDates.focus();
+  } catch (error) {
+    alert("Google 管理者登入失敗，請確認 Firebase 已啟用 Google 登入。");
+  }
 }
 
 function init() {
-  elements.monthPicker.value = getCurrentMonthValue();
+  elements.monthPicker.value = getDefaultMonthValue();
   elements.excludedDates.value = getMonthData(elements.monthPicker.value).excludedDates || "";
-  renderWeekdaySummary();
-  renderPreview();
-  renderTable();
+  renderAll();
+  initCloud();
 
   elements.monthPicker.addEventListener("change", handleMonthChange);
-  elements.excludedDates.addEventListener("input", handleExcludedDatesChange);
+  elements.excludedDates.addEventListener("change", handleExcludedDatesChange);
   elements.form.addEventListener("submit", handleSubmit);
   elements.resetFormButton.addEventListener("click", resetForm);
   elements.weekdayInputs.forEach((input) => input.addEventListener("change", renderPreview));
   elements.registrationTable.addEventListener("click", handleTableClick);
   elements.exportButton.addEventListener("click", exportCsv);
   elements.clearMonthButton.addEventListener("click", clearMonth);
+  elements.refreshButton.addEventListener("click", () => subscribeMonth(elements.monthPicker.value));
+  elements.adminToggleButton.addEventListener("click", toggleAdminPanel);
+  elements.adminLoginButton.addEventListener("click", loginAdmin);
 }
 
 init();

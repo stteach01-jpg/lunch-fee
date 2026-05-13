@@ -22,20 +22,32 @@
 - 每個月各自保存一張總表。
 - 可編輯、刪除、清空本月資料。
 - 可匯出 CSV 總表，方便用 Excel 開啟。
+- 不同人從不同裝置連入網頁時，會同步看到 Firestore 雲端總表。
+- `不列入登記日期` 只開放管理者 Google 帳號修改。
 
 ## 使用方式
 
 直接開啟 `index.html` 即可使用，不需要安裝套件或啟動伺服器。
 
-資料會保存在目前瀏覽器的本機儲存空間；若換電腦或換瀏覽器，請先匯出 CSV 備份。
+資料會同步到 Firebase Firestore；若雲端暫時無法連線，頁面會先保留本機暫存資料。
 
 不列入登記日期可輸入日期數字或完整日期，例如：`1, 5/20, 2026-05-31`。
+
+管理者帳號：
+
+`shuju.chiang@gmail.com`
 
 ## 公開網站
 
 GitHub Pages：
 
 `https://stteach01-jpg.github.io/lunch-fee/`
+
+## Firebase
+
+- Project：`teacherstudy-259b4`
+- Collection：`lunch_fee_months/{monthId}/registrations/{registrationId}`
+- Firestore rules：一般登入者可讀取總表並新增/更新教師登記；管理者才可修改月份設定與刪除資料。
 
 ## 工作方式
 

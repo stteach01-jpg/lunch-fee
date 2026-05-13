@@ -109,10 +109,32 @@ h2 {
   margin-top: 18px;
 }
 
+.admin-panel {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: end;
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fbf6;
+}
+
 .holiday-field small {
   color: var(--muted);
   font-size: 0.9rem;
   font-weight: 500;
+}
+
+.readonly-note {
+  margin: 18px 0 0;
+  padding: 12px 14px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: #fbfcf8;
+  color: var(--muted);
+  font-weight: 700;
 }
 
 .layout {
@@ -120,6 +142,24 @@ h2 {
   grid-template-columns: minmax(280px, 0.82fr) minmax(360px, 1.18fr);
   gap: 22px;
   padding: 24px clamp(18px, 4vw, 48px) 40px;
+}
+
+.status-panel {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow);
+}
+
+.status-panel span {
+  color: var(--muted);
+  font-weight: 700;
 }
 
 .summary-panel,
@@ -349,7 +389,9 @@ tfoot th {
 @media (max-width: 980px) {
   .app-header,
   .layout,
-  .table-header {
+  .table-header,
+  .status-panel,
+  .admin-panel {
     display: grid;
   }
 
