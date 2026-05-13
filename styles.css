@@ -230,22 +230,32 @@ h2 {
   font-weight: 700;
 }
 
-.weekday-picker {
+.weekday-picker,
+.meal-picker {
   display: grid;
-  grid-template-columns: repeat(5, minmax(92px, 1fr));
   gap: 10px;
   margin: 0;
   padding: 0;
   border: 0;
 }
 
-.weekday-picker legend {
+.weekday-picker {
+  grid-template-columns: repeat(5, minmax(92px, 1fr));
+}
+
+.meal-picker {
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+}
+
+.weekday-picker legend,
+.meal-picker legend {
   grid-column: 1 / -1;
   margin-bottom: 2px;
   font-weight: 800;
 }
 
-.weekday-picker label {
+.weekday-picker label,
+.meal-picker label {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -257,7 +267,8 @@ h2 {
   font-weight: 700;
 }
 
-.weekday-picker input {
+.weekday-picker input,
+.meal-picker input {
   width: 18px;
   height: 18px;
   accent-color: var(--primary);
@@ -400,7 +411,8 @@ tfoot th {
   }
 
   .weekday-grid,
-  .weekday-picker {
+  .weekday-picker,
+  .meal-picker {
     grid-template-columns: repeat(2, minmax(120px, 1fr));
   }
 }
@@ -412,6 +424,7 @@ tfoot th {
 
   .weekday-grid,
   .weekday-picker,
+  .meal-picker,
   .calc-preview {
     grid-template-columns: 1fr;
   }

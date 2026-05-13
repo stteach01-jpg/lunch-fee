@@ -30,6 +30,7 @@ const elements = {
   weekdayCardTemplate: document.querySelector("#weekdayCardTemplate"),
   form: document.querySelector("#lunchForm"),
   teacherName: document.querySelector("#teacherName"),
+  mealInputs: Array.from(document.querySelectorAll("input[name='mealType']")),
   weekdayInputs: Array.from(document.querySelectorAll("input[name='weekday']")),
   previewDays: document.querySelector("#previewDays"),
   previewAmount: document.querySelector("#previewAmount"),
@@ -216,6 +217,7 @@ async function saveRegistration(monthKey, entry) {
   setStatus("正在寫入教師登記");
   await getEntriesRef(monthKey).doc(entry.id).set({
     name: entry.name,
+    mealType: entry.mealType || "",
     weekdays: entry.weekdays,
     updatedAtMillis: entry.updatedAtMillis,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -344,6 +346,10 @@ function getSelectedWeekdays() {
     .map((input) => Number(input.value));
 }
 
+function getSelectedMealType() {
+  return elements.mealInputs.find((input) => input.checked)?.value || "";
+}
+
 function calculateDays(selectedWeekdays, counts) {
   return selectedWeekdays.reduce((sum, weekday) => sum + (counts[weekday] || 0), 0);
 }
@@ -422,7 +428,7 @@ function renderTable() {
   if (entries.length === 0) {
     const row = document.createElement("tr");
     row.className = "empty-row";
-    row.innerHTML = '<td colspan="9">尚無登記資料</td>';
+    row.innerHTML = '<td colspan="10">尚無登記資料</td>';
     elements.registrationTable.appendChild(row);
   } else {
     entries
@@ -434,6 +440,7 @@ function renderTable() {
         const row = document.createElement("tr");
         row.innerHTML = `
           <td>${escapeHtml(entry.name)}</td>
+          <td>${escapeHtml(entry.mealType || "未選")}</td>
           ${weekdays.map((weekday) => renderWeekdayCell(selected, weekday.value)).join("")}
           <td>${days} 天</td>
           <td>${formatMoney(days * LUNCH_PRICE)}</td>
@@ -488,10 +495,16 @@ async function handleSubmit(event) {
   const monthKey = elements.monthPicker.value;
   const monthData = getMonthData(monthKey);
   const name = elements.teacherName.value.trim();
+  const mealType = getSelectedMealType();
   const selectedWeekdays = getSelectedWeekdays();
 
   if (!name) {
     elements.teacherName.focus();
+    return;
+  }
+
+  if (!mealType) {
+    alert("請選擇葷食或素食。");
     return;
   }
 
@@ -511,6 +524,7 @@ async function handleSubmit(event) {
   if (duplicate) {
     entryToSave = {
       ...duplicate,
+      mealType,
       weekdays: selectedWeekdays,
       updatedAtMillis: Date.now(),
     };
@@ -520,6 +534,7 @@ async function handleSubmit(event) {
       entryToSave = {
         ...current,
         name,
+        mealType,
         weekdays: selectedWeekdays,
         updatedAtMillis: Date.now(),
       };
@@ -528,6 +543,7 @@ async function handleSubmit(event) {
     entryToSave = {
       id: globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : String(Date.now()),
       name,
+      mealType,
       weekdays: selectedWeekdays,
       updatedAtMillis: Date.now(),
     };
@@ -558,6 +574,9 @@ async function handleTableClick(event) {
   if (button.dataset.action === "edit") {
     editingId = entry.id;
     elements.teacherName.value = entry.name;
+    elements.mealInputs.forEach((input) => {
+      input.checked = input.value === (entry.mealType || "");
+    });
     elements.weekdayInputs.forEach((input) => {
       input.checked = entry.weekdays.includes(Number(input.value));
     });
@@ -592,12 +611,13 @@ function exportCsv() {
     ["每日午餐費", LUNCH_PRICE],
     ["不列入登記日期", excluded.weekdayDates.length ? excluded.weekdayDates.join("、") : "無"],
     [],
-    ["教師姓名", "星期一", "星期二", "星期三", "星期四", "星期五", "訂餐天數", "應付金額"],
+    ["教師姓名", "餐別", "星期一", "星期二", "星期三", "星期四", "星期五", "訂餐天數", "應付金額"],
     ...rows.map((entry) => {
       const selected = new Set(entry.weekdays);
       const days = calculateDays(entry.weekdays, adjustedCounts);
       return [
         entry.name,
+        entry.mealType || "未選",
         ...weekdays.map((weekday) => (selected.has(weekday.value) ? adjustedCounts[weekday.value] : 0)),
         days,
         days * LUNCH_PRICE,
@@ -606,7 +626,7 @@ function exportCsv() {
   ];
 
   const totalDays = rows.reduce((sum, entry) => sum + calculateDays(entry.weekdays, adjustedCounts), 0);
-  csvRows.push(["合計", "", "", "", "", "", totalDays, totalDays * LUNCH_PRICE]);
+  csvRows.push(["合計", "", "", "", "", "", "", totalDays, totalDays * LUNCH_PRICE]);
 
   const csvContent = csvRows.map((row) => row.map(toCsvCell).join(",")).join("\n");
   const blob = new Blob(["\ufeff", csvContent], { type: "text/csv;charset=utf-8" });

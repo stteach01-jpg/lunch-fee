@@ -41,7 +41,7 @@
         <input type="text" id="excludedDates" placeholder="例：1, 5/20, 2026-05-31">
         <small id="excludedDatesHint">可輸入本月假日或停餐日，系統會從星期天數中扣除。</small>
       </label>
-      <p class="readonly-note" id="excludedReadonlyNote">不列入登記日期由後台管理者設定。</p>
+      <p class="readonly-note" id="excludedReadonlyNote">不列入登記日期請勿填寫，本月若有停餐日會由後台管理者設定。</p>
       <div class="weekday-grid" id="weekdaySummary"></div>
     </section>
 
@@ -56,6 +56,12 @@
           教師姓名
           <input type="text" id="teacherName" autocomplete="name" placeholder="請輸入姓名" required>
         </label>
+
+        <fieldset class="meal-picker">
+          <legend>餐別</legend>
+          <label><input type="radio" name="mealType" value="葷食" required> 葷食</label>
+          <label><input type="radio" name="mealType" value="素食" required> 素食</label>
+        </fieldset>
 
         <fieldset class="weekday-picker">
           <legend>選擇當月要訂午餐的星期</legend>
@@ -97,6 +103,7 @@
           <thead>
             <tr>
               <th>教師姓名</th>
+              <th>餐別</th>
               <th>星期一</th>
               <th>星期二</th>
               <th>星期三</th>
