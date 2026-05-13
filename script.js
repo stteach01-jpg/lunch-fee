@@ -12,6 +12,8 @@ const weekdays = [
 const elements = {
   monthPicker: document.querySelector("#monthPicker"),
   monthLabel: document.querySelector("#monthLabel"),
+  excludedDates: document.querySelector("#excludedDates"),
+  excludedDatesHint: document.querySelector("#excludedDatesHint"),
   weekdaySummary: document.querySelector("#weekdaySummary"),
   weekdayCardTemplate: document.querySelector("#weekdayCardTemplate"),
   form: document.querySelector("#lunchForm"),
@@ -34,6 +36,9 @@ let editingId = null;
 
 function getCurrentMonthValue() {
   const now = new Date();
+  if (now.getDate() > 15) {
+    now.setMonth(now.getMonth() + 1);
+  }
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
@@ -50,14 +55,29 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-function getMonthEntries(monthKey) {
-  if (!state[monthKey]) {
-    state[monthKey] = [];
+function getMonthData(monthKey) {
+  if (Array.isArray(state[monthKey])) {
+    state[monthKey] = {
+      entries: state[monthKey],
+      excludedDates: "",
+    };
   }
+
+  if (!state[monthKey]) {
+    state[monthKey] = {
+      entries: [],
+      excludedDates: "",
+    };
+  }
+
   return state[monthKey];
 }
 
-function getWeekdayCounts(monthKey) {
+function getMonthEntries(monthKey) {
+  return getMonthData(monthKey).entries;
+}
+
+function getBaseWeekdayCounts(monthKey) {
   const [year, month] = monthKey.split("-").map(Number);
   const lastDate = new Date(year, month, 0).getDate();
   const counts = Object.fromEntries(weekdays.map((weekday) => [weekday.value, 0]));
@@ -70,6 +90,98 @@ function getWeekdayCounts(monthKey) {
   }
 
   return counts;
+}
+
+function getExcludedDateInfo(monthKey) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const lastDate = new Date(year, month, 0).getDate();
+  const input = getMonthData(monthKey).excludedDates || "";
+  const excludedDates = new Set();
+  const ignored = [];
+
+  input
+    .split(/[\s,，、;；]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .forEach((item) => {
+      const day = parseExcludedDay(item, year, month, lastDate);
+      if (day) {
+        excludedDates.add(day);
+      } else {
+        ignored.push(item);
+      }
+    });
+
+  const byWeekday = Object.fromEntries(weekdays.map((weekday) => [weekday.value, 0]));
+  const weekdayDates = [];
+  const weekendDates = [];
+
+  Array.from(excludedDates)
+    .sort((a, b) => a - b)
+    .forEach((date) => {
+      const day = new Date(year, month - 1, date).getDay();
+      if (day >= 1 && day <= 5) {
+        byWeekday[day] += 1;
+        weekdayDates.push(date);
+      } else {
+        weekendDates.push(date);
+      }
+    });
+
+  return {
+    byWeekday,
+    ignored,
+    weekdayDates,
+    weekendDates,
+  };
+}
+
+function parseExcludedDay(value, year, month, lastDate) {
+  const normalized = value.replaceAll("/", "-");
+  let targetYear = year;
+  let targetMonth = month;
+  let targetDay = null;
+
+  if (/^\d{1,2}$/.test(normalized)) {
+    targetDay = Number(normalized);
+  } else if (/^\d{1,2}-\d{1,2}$/.test(normalized)) {
+    const [inputMonth, inputDay] = normalized.split("-").map(Number);
+    targetMonth = inputMonth;
+    targetDay = inputDay;
+  } else if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(normalized)) {
+    const parts = normalized.split("-").map(Number);
+    targetYear = parts[0];
+    targetMonth = parts[1];
+    targetDay = parts[2];
+  }
+
+  if (
+    targetYear !== year ||
+    targetMonth !== month ||
+    !Number.isInteger(targetDay) ||
+    targetDay < 1 ||
+    targetDay > lastDate
+  ) {
+    return null;
+  }
+
+  return targetDay;
+}
+
+function getWeekdayCounts(monthKey) {
+  const baseCounts = getBaseWeekdayCounts(monthKey);
+  const excluded = getExcludedDateInfo(monthKey);
+  const counts = { ...baseCounts };
+
+  weekdays.forEach((weekday) => {
+    counts[weekday.value] = Math.max(0, baseCounts[weekday.value] - excluded.byWeekday[weekday.value]);
+  });
+
+  return {
+    baseCounts,
+    adjustedCounts: counts,
+    excluded,
+  };
 }
 
 function getMonthDisplay(monthKey) {
@@ -93,7 +205,7 @@ function formatMoney(amount) {
 
 function renderWeekdaySummary() {
   const monthKey = elements.monthPicker.value;
-  const counts = getWeekdayCounts(monthKey);
+  const { baseCounts, adjustedCounts, excluded } = getWeekdayCounts(monthKey);
   const fragment = document.createDocumentFragment();
 
   elements.monthLabel.textContent = getMonthDisplay(monthKey);
@@ -102,23 +214,43 @@ function renderWeekdaySummary() {
   weekdays.forEach((weekday) => {
     const card = elements.weekdayCardTemplate.content.cloneNode(true);
     card.querySelector(".weekday-name").textContent = weekday.label;
-    card.querySelector(".weekday-count").textContent = `${counts[weekday.value]} 天`;
+    card.querySelector(".weekday-count").textContent = `${adjustedCounts[weekday.value]} 天`;
+    card.querySelector(".weekday-detail").textContent = excluded.byWeekday[weekday.value]
+      ? `原 ${baseCounts[weekday.value]} 天，扣 ${excluded.byWeekday[weekday.value]} 天`
+      : `原 ${baseCounts[weekday.value]} 天`;
     fragment.appendChild(card);
   });
 
   elements.weekdaySummary.appendChild(fragment);
+  renderExcludedHint(excluded);
+}
+
+function renderExcludedHint(excluded) {
+  const parts = [];
+  if (excluded.weekdayDates.length) {
+    parts.push(`已扣除：${excluded.weekdayDates.join("、")} 日`);
+  }
+  if (excluded.weekendDates.length) {
+    parts.push(`週末不影響：${excluded.weekendDates.join("、")} 日`);
+  }
+  if (excluded.ignored.length) {
+    parts.push(`未採計：${excluded.ignored.join("、")}`);
+  }
+  elements.excludedDatesHint.textContent = parts.length
+    ? parts.join("；")
+    : "可輸入本月假日或停餐日，系統會從星期天數中扣除。";
 }
 
 function renderPreview() {
-  const counts = getWeekdayCounts(elements.monthPicker.value);
-  const days = calculateDays(getSelectedWeekdays(), counts);
+  const { adjustedCounts } = getWeekdayCounts(elements.monthPicker.value);
+  const days = calculateDays(getSelectedWeekdays(), adjustedCounts);
   elements.previewDays.textContent = `${days} 天`;
   elements.previewAmount.textContent = formatMoney(days * LUNCH_PRICE);
 }
 
 function renderTable() {
   const monthKey = elements.monthPicker.value;
-  const counts = getWeekdayCounts(monthKey);
+  const { adjustedCounts } = getWeekdayCounts(monthKey);
   const entries = getMonthEntries(monthKey);
   const fragment = document.createDocumentFragment();
 
@@ -135,7 +267,7 @@ function renderTable() {
       .sort((a, b) => a.name.localeCompare(b.name, "zh-Hant"))
       .forEach((entry) => {
         const selected = new Set(entry.weekdays);
-        const days = calculateDays(entry.weekdays, counts);
+        const days = calculateDays(entry.weekdays, adjustedCounts);
         const row = document.createElement("tr");
         row.innerHTML = `
           <td>${escapeHtml(entry.name)}</td>
@@ -154,7 +286,7 @@ function renderTable() {
     elements.registrationTable.appendChild(fragment);
   }
 
-  const totalDays = entries.reduce((sum, entry) => sum + calculateDays(entry.weekdays, counts), 0);
+  const totalDays = entries.reduce((sum, entry) => sum + calculateDays(entry.weekdays, adjustedCounts), 0);
   const totalAmount = totalDays * LUNCH_PRICE;
   elements.totalDays.textContent = `${totalDays} 天`;
   elements.totalAmount.textContent = formatMoney(totalAmount);
@@ -214,7 +346,7 @@ function handleSubmit(event) {
   if (duplicate) {
     duplicate.weekdays = selectedWeekdays;
     if (editingId) {
-      state[monthKey] = entries.filter((entry) => entry.id !== editingId);
+      getMonthData(monthKey).entries = entries.filter((entry) => entry.id !== editingId);
     }
   } else if (editingId) {
     const current = entries.find((entry) => entry.id === editingId);
@@ -261,7 +393,7 @@ function handleTableClick(event) {
   }
 
   if (button.dataset.action === "delete" && confirm(`確定刪除 ${entry.name} 的登記資料？`)) {
-    state[monthKey] = entries.filter((item) => item.id !== entry.id);
+    getMonthData(monthKey).entries = entries.filter((item) => item.id !== entry.id);
     saveState();
     if (editingId === entry.id) {
       resetForm();
@@ -272,7 +404,7 @@ function handleTableClick(event) {
 
 function exportCsv() {
   const monthKey = elements.monthPicker.value;
-  const counts = getWeekdayCounts(monthKey);
+  const { adjustedCounts, excluded } = getWeekdayCounts(monthKey);
   const rows = getMonthEntries(monthKey)
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name, "zh-Hant"));
@@ -280,21 +412,22 @@ function exportCsv() {
   const csvRows = [
     ["月份", getMonthDisplay(monthKey)],
     ["每日午餐費", LUNCH_PRICE],
+    ["不列入登記日期", excluded.weekdayDates.length ? excluded.weekdayDates.join("、") : "無"],
     [],
     ["教師姓名", "星期一", "星期二", "星期三", "星期四", "星期五", "訂餐天數", "應付金額"],
     ...rows.map((entry) => {
       const selected = new Set(entry.weekdays);
-      const days = calculateDays(entry.weekdays, counts);
+      const days = calculateDays(entry.weekdays, adjustedCounts);
       return [
         entry.name,
-        ...weekdays.map((weekday) => (selected.has(weekday.value) ? counts[weekday.value] : 0)),
+        ...weekdays.map((weekday) => (selected.has(weekday.value) ? adjustedCounts[weekday.value] : 0)),
         days,
         days * LUNCH_PRICE,
       ];
     }),
   ];
 
-  const totalDays = rows.reduce((sum, entry) => sum + calculateDays(entry.weekdays, counts), 0);
+  const totalDays = rows.reduce((sum, entry) => sum + calculateDays(entry.weekdays, adjustedCounts), 0);
   csvRows.push(["合計", "", "", "", "", "", totalDays, totalDays * LUNCH_PRICE]);
 
   const csvContent = csvRows.map((row) => row.map(toCsvCell).join(",")).join("\n");
@@ -318,25 +451,37 @@ function clearMonth() {
     return;
   }
 
-  state[monthKey] = [];
+  getMonthData(monthKey).entries = [];
   saveState();
   resetForm();
   renderTable();
 }
 
 function handleMonthChange() {
+  elements.excludedDates.value = getMonthData(elements.monthPicker.value).excludedDates || "";
   resetForm();
   renderWeekdaySummary();
   renderTable();
 }
 
+function handleExcludedDatesChange() {
+  const monthKey = elements.monthPicker.value;
+  getMonthData(monthKey).excludedDates = elements.excludedDates.value.trim();
+  saveState();
+  renderWeekdaySummary();
+  renderPreview();
+  renderTable();
+}
+
 function init() {
   elements.monthPicker.value = getCurrentMonthValue();
+  elements.excludedDates.value = getMonthData(elements.monthPicker.value).excludedDates || "";
   renderWeekdaySummary();
   renderPreview();
   renderTable();
 
   elements.monthPicker.addEventListener("change", handleMonthChange);
+  elements.excludedDates.addEventListener("input", handleExcludedDatesChange);
   elements.form.addEventListener("submit", handleSubmit);
   elements.resetFormButton.addEventListener("click", resetForm);
   elements.weekdayInputs.forEach((input) => input.addEventListener("change", renderPreview));

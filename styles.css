@@ -28,7 +28,8 @@ body {
 }
 
 button,
-input {
+input,
+small {
   font: inherit;
 }
 
@@ -87,6 +88,12 @@ h2 {
   font-weight: 700;
 }
 
+.month-control small {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
 .month-control input,
 .field input {
   width: 100%;
@@ -96,6 +103,16 @@ h2 {
   padding: 0 12px;
   background: #fff;
   color: var(--ink);
+}
+
+.holiday-field {
+  margin-top: 18px;
+}
+
+.holiday-field small {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 500;
 }
 
 .layout {
@@ -137,7 +154,7 @@ h2 {
 }
 
 .weekday-card {
-  min-height: 96px;
+  min-height: 118px;
   display: grid;
   align-content: center;
   gap: 8px;
@@ -154,6 +171,11 @@ h2 {
 
 .weekday-count {
   font-size: 1.8rem;
+}
+
+.weekday-detail {
+  color: var(--muted);
+  font-size: 0.86rem;
 }
 
 .lunch-form {

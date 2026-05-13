@@ -15,6 +15,7 @@
     <div class="month-control">
       <label for="monthPicker">登記月份</label>
       <input type="month" id="monthPicker">
+      <small>每月 16 日起，預設登記下個月。</small>
     </div>
   </header>
 
@@ -24,13 +25,18 @@
         <h2 id="monthSummaryTitle">本月星期天數</h2>
         <p id="monthLabel">請選擇月份</p>
       </div>
+      <label class="field holiday-field">
+        不列入登記日期
+        <input type="text" id="excludedDates" placeholder="例：1, 5/20, 2026-05-31">
+        <small id="excludedDatesHint">可輸入本月假日或停餐日，系統會從星期天數中扣除。</small>
+      </label>
       <div class="weekday-grid" id="weekdaySummary"></div>
     </section>
 
     <section class="entry-panel" aria-labelledby="entryTitle">
       <div class="section-title">
         <h2 id="entryTitle">教師登記</h2>
-        <p>每日午餐費 55 元</p>
+        <p>每日午餐費 55 元，不同教師送出後會持續累計在本月總表。</p>
       </div>
 
       <form id="lunchForm" class="lunch-form">
@@ -107,6 +113,7 @@
     <article class="weekday-card">
       <span class="weekday-name"></span>
       <strong class="weekday-count"></strong>
+      <small class="weekday-detail"></small>
     </article>
   </template>
 
