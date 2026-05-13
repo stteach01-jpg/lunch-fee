@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>社頭國中教師營養午餐登記</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">社頭國中</p>
+      <h1>教師營養午餐登記</h1>
+    </div>
+    <div class="month-control">
+      <label for="monthPicker">登記月份</label>
+      <input type="month" id="monthPicker">
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="summary-panel" aria-labelledby="monthSummaryTitle">
+      <div class="section-title">
+        <h2 id="monthSummaryTitle">本月星期天數</h2>
+        <p id="monthLabel">請選擇月份</p>
+      </div>
+      <div class="weekday-grid" id="weekdaySummary"></div>
+    </section>
+
+    <section class="entry-panel" aria-labelledby="entryTitle">
+      <div class="section-title">
+        <h2 id="entryTitle">教師登記</h2>
+        <p>每日午餐費 55 元</p>
+      </div>
+
+      <form id="lunchForm" class="lunch-form">
+        <label class="field">
+          教師姓名
+          <input type="text" id="teacherName" autocomplete="name" placeholder="請輸入姓名" required>
+        </label>
+
+        <fieldset class="weekday-picker">
+          <legend>選擇當月要訂午餐的星期</legend>
+          <label><input type="checkbox" name="weekday" value="1"> 星期一</label>
+          <label><input type="checkbox" name="weekday" value="2"> 星期二</label>
+          <label><input type="checkbox" name="weekday" value="3"> 星期三</label>
+          <label><input type="checkbox" name="weekday" value="4"> 星期四</label>
+          <label><input type="checkbox" name="weekday" value="5"> 星期五</label>
+        </fieldset>
+
+        <div class="calc-preview" aria-live="polite">
+          <span>訂餐天數</span>
+          <strong id="previewDays">0 天</strong>
+          <span>應付金額</span>
+          <strong id="previewAmount">0 元</strong>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="primary-button" id="saveButton">加入總表</button>
+          <button type="button" class="secondary-button" id="resetFormButton">清空表單</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="table-section" aria-labelledby="tableTitle">
+      <div class="table-header">
+        <div class="section-title">
+          <h2 id="tableTitle">每月總表</h2>
+          <p id="tableSummary">尚無登記資料</p>
+        </div>
+        <div class="table-actions">
+          <button type="button" class="secondary-button" id="exportButton">匯出 CSV</button>
+          <button type="button" class="danger-button" id="clearMonthButton">清空本月</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>教師姓名</th>
+              <th>星期一</th>
+              <th>星期二</th>
+              <th>星期三</th>
+              <th>星期四</th>
+              <th>星期五</th>
+              <th>訂餐天數</th>
+              <th>應付金額</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="registrationTable"></tbody>
+          <tfoot>
+            <tr>
+              <th colspan="6">合計</th>
+              <th id="totalDays">0 天</th>
+              <th id="totalAmount">0 元</th>
+              <th></th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <template id="weekdayCardTemplate">
+    <article class="weekday-card">
+      <span class="weekday-name"></span>
+      <strong class="weekday-count"></strong>
+    </article>
+  </template>
+
+  <script src="script.js"></script>
+</body>
+</html>
